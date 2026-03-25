@@ -395,6 +395,58 @@ class MemHeatPot(MultiTaskBase):
         )
 
 
+class MemHeatPotLong(MemHeatPot):
+    """
+    Variant of MemHeatPot that decouples cooking duration from object identity.
+    Randomly samples T_wait from {1, 2, 3, 4, 5, 6} minutes at each reset.
+    Instruction: "Heat the [Object] for [Time] seconds."
+
+    If set_ep_meta() is called before reset() with a "wait_secs" key, that
+    value is reused instead of sampling a new one.
+    """
+
+    WAIT_OPTIONS_SECS = [120, 360, 600, 840, 1080, 1320, 1560, 1800]   # 1-6 minutes
+
+    # Set by set_ep_meta(); None means sample randomly in _reset_internal.
+    fixed_wait_secs = None
+
+    def set_ep_meta(self, ep_meta):
+        super().set_ep_meta(ep_meta)
+        if "wait_secs" in ep_meta:
+            self.fixed_wait_secs = int(ep_meta["wait_secs"])
+            # Apply directly so this works even when called after _reset_internal
+            # (e.g. after env.reset_to() which may run _reset_internal with a random value).
+            self.stove_wait_timer_threshold = self.fixed_wait_secs * kobject.COOK_FPS
+            self.stove_wait_timer_max_threshold = (
+                self.stove_wait_timer_threshold + 60 * kobject.COOK_FPS
+            )
+        else:
+            self.fixed_wait_secs = None
+
+    def _reset_internal(self):
+        super()._reset_internal()
+        # Use the pinned value from set_ep_meta if available, else sample randomly.
+        # np_random may not exist during the very first __init__ call; fall back to np.random.
+        if self.fixed_wait_secs is not None:
+            wait_secs = self.fixed_wait_secs
+        elif hasattr(self, "np_random"):
+            wait_secs = int(self.np_random.choice(self.WAIT_OPTIONS_SECS))
+        else:
+            wait_secs = int(np.random.choice(self.WAIT_OPTIONS_SECS))
+        self.stove_wait_timer_threshold = wait_secs * kobject.COOK_FPS
+        self.stove_wait_timer_max_threshold = (
+            self.stove_wait_timer_threshold + 60 * kobject.COOK_FPS
+        )
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        obj_lang = self.get_obj_lang(obj_name="meat")
+        wait_secs = int(self.stove_wait_timer_threshold / kobject.COOK_FPS)
+        ep_meta["lang"] = f"Heat the {obj_lang} for {wait_secs} seconds."
+        ep_meta["wait_secs"] = wait_secs
+        return ep_meta
+
+
 class MemHeatPotMultiple(MultiTaskBase):
     """
     Goal is to track multiple objects on the stove during the episode

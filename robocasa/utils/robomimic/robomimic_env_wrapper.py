@@ -328,28 +328,6 @@ class EnvRobocasa:
                 if self.postprocess_visual_obs:
                     ret[k] = ObsUtils.process_obs(obs=ret[k], obs_key=k)
 
-        # "object" key contains object information
-        if "object-state" in di:
-            ret["object-state"] = np.array(
-                di["object-state"]
-            )  # double copying for backward compatibility
-            ret["objects-joint-state"] = np.array(di["objects-joint-state"])
-        if "object-state" in di:
-            ret["object"] = np.array(di["object-state"])
-        if "obj_pos" in di:  # more privileged info
-            ret["obj_pos"] = np.array(di["obj_pos"])
-            ret["obj_quat"] = np.array(di["obj_quat"])
-        if "vegetable_container_pos" in di:
-            ret["vegetable_container_pos"] = np.array(di["vegetable_container_pos"])
-            ret["vegetable_container_to_robot0_eef_pos"] = np.array(
-                di["vegetable_container_to_robot0_eef_pos"]
-            )
-        if "vegetable_pos" in di:
-            ret["vegetable_pos"] = np.array(di["vegetable_pos"])
-            ret["vegetable_to_robot0_eef_pos"] = np.array(
-                di["vegetable_to_robot0_eef_pos"]
-            )
-
         if self._is_v1:
             for robot in self.env.robots:
                 # add all robot-arm-specific observations. Note the (k not in ret) check
